@@ -1,81 +1,92 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { persistor } from "@/lib/store/store";
 import { message, Button } from "antd";
 import { useRouter } from "next/navigation";
 import Chat from "./chat";
 import { useAppSelector, useAppDispatch } from "@/lib/store/hooks";
-import { fetchUsers } from "@/lib/store/features/usersThunk";
 import { logout } from "@/lib/store/features/authThunk";
+import { fetchUsers } from "@/lib/store/features/usersThunk";
 import { io } from "socket.io-client";
-import { useRef } from "react";
 
 interface User {
   _id: string;
   username: string;
+  updatedAt?: string | null;
 }
 
 export default function ChatDashboard() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
+  const [sortedUsers, setSortedUsers] = useState<User[]>([]);
   const [search, setSearch] = useState("");
+  const socketRef = useRef<any>(null);
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const socketRef = useRef<any>(null);
 
   const userId = useAppSelector((state) => state.auth.user?.userId);
   const currentUser = useAppSelector((state) => state.auth.user?.user);
-  
-  const allUsers = useAppSelector((state) =>
-    state.user.users.filter((user) => user._id !== userId)
-  );
-
-  const filteredUsers = allUsers.filter((user) =>
-    user.username.toLowerCase().includes(search.toLowerCase())
-  );
   const error = useAppSelector((state) => state.user.error || state.auth.error);
-
+  const users = useAppSelector((state) => state.user.users);
+  
   useEffect(() => {
     if (!userId) return;
     dispatch(fetchUsers());
-  }, [userId]);
+    
 
-  const handleSelectUser = (user: User) => {
-    setSelectedUser(user);
-  };
+  }, [userId, dispatch]);
+  useEffect(() => {
+    if (users.length > 0) {
+      setSortedUsers(users)
+    }
+  }, [users])
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const socket = io("http://localhost:5050", {
+      transports: ["websocket"],
+    });
+
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      console.log("Connected:", socket.id);
+
+      socket.emit("userOnline", userId);
+    });
+
+    socket.on("onlineUsers", (users: string[]) => {
+      setOnlineUsers(users);
+    });
+
+    socket.on("sortedUsers", (users: User[]) => {
+      setSortedUsers(users);
+    });
+
+    socket.on("disconnect", () => {
+      console.log(" Disconnected");
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [userId]);
 
   useEffect(() => {
     if (error) {
       message.error(error);
     }
   }, [error]);
-  useEffect(() => {
-    if (!userId) return;
 
-    socketRef.current = io("http://localhost:5050");
+  const filteredUsers = sortedUsers.filter((user) =>
+    user.username.toLowerCase().includes(search.toLowerCase())
+  );
 
-    socketRef.current.emit("userOnline", userId);
-
-    return () => {
-      socketRef.current.disconnect();
-    };
-  }, [userId]);
-
-
-  useEffect(() => {
-    if (!socketRef.current) return;
-
-    socketRef.current.on("onlineUsers", (users: string[]) => {
-      setOnlineUsers(users);
-    });
-
-    return () => {
-      socketRef.current.off("onlineUsers");
-    };
-  }, []);
-
-
+  const handleSelectUser = (user: User) => {
+    setSelectedUser(user);
+  };
 
   const handleLogout = async () => {
     try {
@@ -95,26 +106,24 @@ export default function ChatDashboard() {
   return (
     <div className="flex h-screen bg-slate-100">
       <aside className="w-80 bg-white border-r border-gray-300 shadow-sm flex flex-col">
-        <div className="px-6 py-5 border-b shadow-sm border-gray-300">
+        <div className="px-6 py-5 border-b border-gray-300">
           <div className="text-base font-semibold">
-            {currentUser ? `Welcome ,  ${currentUser}` : "Chat"}
+            {currentUser ? `Welcome, ${currentUser}` : "Chat"}
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto space-y-3">
-          <div className="px-6 py-4 flex justify-between ">
-            <h2>Users</h2>
+        <div className="px-6 py-4 flex justify-between">
+          <h2>Users</h2>
+          <input
+            type="text"
+            placeholder="Search..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="border border-slate-400 px-2 py-1 rounded"
+          />
+        </div>
 
-            <div>
-              <input
-                type="text"
-                placeholder="Search users..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="border border-slate-500 px-2 py-1 rounded"
-              />
-            </div>
-          </div>
+        <div className="flex-1 overflow-y-auto space-y-2">
           {filteredUsers.map((user) => {
             const isOnline = onlineUsers.includes(user._id);
 
@@ -122,22 +131,22 @@ export default function ChatDashboard() {
               <button
                 key={user._id}
                 onClick={() => handleSelectUser(user)}
-                className={`w-full text-left px-6 py-4 flex shadow-sm items-center gap-3 border-y border-gray-300 hover:bg-slate-50 ${selectedUser?._id === user._id ? "bg-slate-100" : "bg-white"
+                className={`w-full text-left px-6 py-4 flex items-center gap-3 border-y border-gray-200 hover:bg-slate-50 ${selectedUser?._id === user._id
+                  ? "bg-slate-100"
+                  : "bg-white"
                   }`}
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-500 text-white font-semibold uppercase relative">
+                <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-indigo-500 text-white font-semibold uppercase">
                   {user.username?.[0] || "U"}
                   <span
                     className={`w-3 h-3 rounded-full absolute bottom-0 right-0 ${isOnline ? "bg-green-500" : "bg-red-400"
                       }`}
-                  ></span>
+                  />
                 </div>
 
                 <div className="flex-1">
-                  <div className="font-medium capitalize flex items-center gap-2">
+                  <div className="font-medium capitalize">
                     {user.username}
-
-
                   </div>
 
                   <div className="text-sm text-slate-500">

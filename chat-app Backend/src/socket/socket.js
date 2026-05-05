@@ -1,6 +1,6 @@
 import { Server } from "socket.io";
 
-const onlineUsers = new Map(); 
+const onlineUsers = new Map();
 
 export const initSocket = (server) => {
   const io = new Server(server, {
@@ -11,11 +11,11 @@ export const initSocket = (server) => {
   });
 
   io.on("connection", (socket) => {
-    // console.log("User connected:", socket.id);
+    console.log("User connected:", socket.id);
 
     socket.on("userOnline", (userId) => {
       onlineUsers.set(userId, socket.id);
-
+      socket.join(userId);
       io.emit("onlineUsers", Array.from(onlineUsers.keys()));
     });
 

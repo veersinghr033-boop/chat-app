@@ -1,5 +1,6 @@
 import Chat from "../models/chatModel.js";
 import Message from "../models/message.js";
+import { emitSortedUsers } from "./userControllers.js";
 
 export const getMessages = async (req, res) => {
   try {
@@ -13,9 +14,7 @@ export const getMessages = async (req, res) => {
 
     if (!chat) return res.json([]);
     
-    const messages = await Message.find({ chatId: chat._id }).sort({
-      timestamp: 1,
-    });
+    const messages = await Message.find({ chatId: chat._id });
     const room = [senderId, receiverId].sort().join("_");
 
     const io = req.app.get("io");
@@ -50,6 +49,10 @@ export const createChat = async (req, res) => {
       chatId: chat._id,
     });
 
+    await Chat.findByIdAndUpdate(chat._id, {
+      $set: { updatedAt: new Date() },
+    });
+
     const formattedMsg = {
       senderId,
       receiverId,
@@ -61,6 +64,8 @@ export const createChat = async (req, res) => {
 
     const io = req.app.get("io");
     io.to(room).emit("receiveMessage", formattedMsg);
+    await emitSortedUsers(io, senderId);
+    await emitSortedUsers(io, receiverId);
 
     res.status(201).json({
       message: "Message sent",

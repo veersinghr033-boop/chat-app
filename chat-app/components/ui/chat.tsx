@@ -153,7 +153,7 @@ function Chat({ selectedUser, userId }: ChatProps) {
 
                 return (
                   <div
-                    className={`flex flex-col gap-1 mx-4 mt-2  ${isMine ? "self-end items-end" : "self-start items-start"}`}
+                    className={`flex flex-col gap-1 mx-4 py- 1.5 ${isMine ? "self-end items-end" : "self-start items-start"}`}
                   >
                     <div
                       className={`inline-block max-w-[70%] rounded-2xl px-5 py-2 ${isMine
