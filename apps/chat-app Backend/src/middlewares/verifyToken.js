@@ -7,7 +7,6 @@ const secret_key = process.env.JWT_SECRET;
 
 export const verifyToken = (req, res, next) => {
   const token = req.cookies.token;
-  // console.log(token)
   if (!token) {
     return res
       .status(401)

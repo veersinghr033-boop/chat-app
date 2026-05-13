@@ -14,11 +14,7 @@ export const getMessages = async (req, res) => {
     if (!chat) return res.json([]);
 
     const messages = await Message.find({ chatId: chat._id });
-    // const room = [senderId, receiverId].sort().join("_");
-
-    // const io = req.app.get("io");
-    // io.to(room).emit("chatHistory", messages);
-
+    
     res.json(messages);
   } catch (err) {
     console.error(err);
