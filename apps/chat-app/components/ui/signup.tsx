@@ -3,7 +3,6 @@ import { useState } from "react";
 import { message } from "antd";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import api from "@/utills/axios";
 import { useAppDispatch } from "@/lib/store/hooks";
 import { signup } from "@/lib/store/features/authThunk";
 
@@ -11,11 +10,9 @@ function Signup() {
   const [username, setUsername] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [email, setEmail] = useState<string>("");
-  const [phone, setPhone] = useState<string>("");
   const router = useRouter();
   const dispatch = useAppDispatch();
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const phoneRegex = /^\d{10}$/;
 
   const handleSignup = async (e: any) => {
     e.preventDefault();
@@ -75,15 +72,7 @@ function Signup() {
           className="p-2 border rounded w-full "
           onChange={(e) => setEmail(e.target.value)}
         />
-        {/* <label htmlFor="phone">Phone</label>
-        <input
-          type="tel"
-          id="phone"
-          placeholder="Phone"
-          value={phone}
-          className="p-2 border rounded w-full "
-          onChange={(e) => setPhone(e.target.value)}
-        /> */}
+        
         <div className="items-center flex justify-center space-x-5">
           <button
             type="submit"
