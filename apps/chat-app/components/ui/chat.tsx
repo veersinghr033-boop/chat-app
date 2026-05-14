@@ -1,7 +1,7 @@
 "use client";
 
 import api from "@/utills/axios";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, use, useEffect, useRef, useState } from "react";
 import { message } from "antd";
 import { Virtuoso } from "react-virtuoso";
 import { io } from "socket.io-client";
@@ -21,29 +21,27 @@ interface Message {
 function Chat({ selectedUser, userId }: ChatProps) {
   const [messageText, setMessageText] = useState<string>("");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
+  const [userStatuses, setUserStatuses] = useState<Record<string, string>>({});
   const socketRef = useRef<any>(null);
   const currentRoomRef = useRef<string | null>(null);
 
   useEffect(() => {
     socketRef.current = io("http://localhost:5050");
 
-    return () => {
-      socketRef.current.disconnect();
-    };
-  }, [userId]);
-
-  useEffect(() => {
-    if (!socketRef.current) return;
-
-    socketRef.current.on("onlineUsers", (users: string[]) => {
-      setOnlineUsers(users);
+    socketRef.current.on("userStatus", ({ userId, status }: { userId: string; status: string }) => {
+      setUserStatuses((prev: any) => ({
+        ...prev,
+        [userId]: status,
+      }));
     });
 
     return () => {
-      socketRef.current.off("onlineUsers");
+      socketRef.current.disconnect();
+      socketRef.current.off("userStatus");
     };
-  }, []);
+  }, [userId]);
+
+
 
   const loadMessages = async () => {
     if (!selectedUser) return;
@@ -123,11 +121,8 @@ function Chat({ selectedUser, userId }: ChatProps) {
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500 text-white font-semibold uppercase relative">
             {selectedUser?.username?.[0] || "U"}
             <span
-              className={`w-3 h-3 rounded-full absolute bottom-0 right-0 ${
-                onlineUsers.includes(selectedUser?._id)
-                  ? "bg-green-500"
-                  : "bg-red-400"
-              }`}
+              className={`w-3 h-3 rounded-full absolute bottom-0 right-0 ${userStatuses[selectedUser?._id] === "online" ? "bg-green-500" : userStatuses[selectedUser?._id] === "away" ? "bg-yellow-400" : "bg-red-400"
+                }`}
             ></span>
           </div>
           <div className="text-base font-semibold capitalize">
@@ -151,11 +146,10 @@ function Chat({ selectedUser, userId }: ChatProps) {
                     className={`flex flex-col gap-1 mx-4 py- 1.5 ${isMine ? "self-end items-end" : "self-start items-start"}`}
                   >
                     <div
-                      className={`inline-block max-w-[70%] rounded-2xl px-5 py-2 ${
-                        isMine
-                          ? "bg-blue-500 text-white shadow"
-                          : "bg-white text-black shadow"
-                      }`}
+                      className={`inline-block max-w-[70%] rounded-2xl px-5 py-2 ${isMine
+                        ? "bg-blue-500 text-white shadow"
+                        : "bg-white text-black shadow"
+                        }`}
                     >
                       {item.message}
                     </div>

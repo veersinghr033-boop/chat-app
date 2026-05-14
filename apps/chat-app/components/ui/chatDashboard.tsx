@@ -18,9 +18,9 @@ interface User {
 
 export default function ChatDashboard() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const [sortedUsers, setSortedUsers] = useState<User[]>([]);
   const [search, setSearch] = useState("");
+  const [userStatuses, setUserStatuses] = useState<Record<string, string>>({});
   const socketRef = useRef<any>(null);
   const router = useRouter();
   const dispatch = useAppDispatch();
@@ -29,18 +29,16 @@ export default function ChatDashboard() {
   const currentUser = useAppSelector((state) => state.auth.user?.user);
   const error = useAppSelector((state) => state.user.error || state.auth.error);
   const users = useAppSelector((state) => state.user.users);
-  
+
   useEffect(() => {
     if (!userId) return;
     dispatch(fetchUsers());
-    
-
   }, [userId, dispatch]);
   useEffect(() => {
     if (users.length > 0) {
-      setSortedUsers(users)
+      setSortedUsers(users);
     }
-  }, [users])
+  }, [users]);
 
   useEffect(() => {
     if (!userId) return;
@@ -51,16 +49,17 @@ export default function ChatDashboard() {
 
     socket.on("connect", () => {
       console.log("Connected:", socket.id);
-
-      socket.emit("userOnline", userId);
-    });
-
-    socket.on("onlineUsers", (users: string[]) => {
-      setOnlineUsers(users);
     });
 
     socket.on("sortedUsers", (users: User[]) => {
       setSortedUsers(users);
+    });
+
+    socket.on("userStatus", ({ userId, status }) => {
+      setUserStatuses((prev: any) => ({
+        ...prev,
+        [userId]: status,
+      }));
     });
 
     socket.on("disconnect", () => {
@@ -73,13 +72,57 @@ export default function ChatDashboard() {
   }, [userId]);
 
   useEffect(() => {
+    if (!socketRef.current || !userId) return;
+
+    let timeout: NodeJS.Timeout;
+
+    const setAway = () => {
+      socketRef.current.emit("userAway", userId);
+    };
+    const resetTimer = () => {
+      clearTimeout(timeout);
+      socketRef.current.emit("userOnline", userId);
+      timeout = setTimeout(setAway, 3 * 60 * 1000);
+    };
+
+    window.addEventListener("mousemove", resetTimer);
+    window.addEventListener("keydown", resetTimer);
+    window.addEventListener("click", resetTimer);
+
+    const handleHidden = () => {
+      if (document.hidden) {
+        socketRef.current.emit("userAway", userId);
+      } else {
+        socketRef.current.emit("userOnline", userId);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleHidden);
+
+    const handleUnload = () => {
+      socketRef.current.emit("userAway", userId);
+    };
+
+    window.addEventListener("beforeunload", handleUnload);
+    resetTimer();
+    return () => {
+      clearTimeout(timeout);
+      window.removeEventListener("mousemove", resetTimer);
+      window.removeEventListener("keydown", resetTimer);
+      window.removeEventListener("click", resetTimer);
+      document.removeEventListener("visibilitychange", handleHidden);
+      window.removeEventListener("beforeunload", handleUnload);
+    };
+  }, [userId]);
+
+  useEffect(() => {
     if (error) {
       message.error(error);
     }
   }, [error]);
 
   const filteredUsers = sortedUsers.filter((user) =>
-    user.username.toLowerCase().includes(search.toLowerCase())
+    user.username.toLowerCase().includes(search.toLowerCase()),
   );
 
   const handleSelectUser = (user: User) => {
@@ -92,6 +135,8 @@ export default function ChatDashboard() {
       if (logout.fulfilled.match(resultAction)) {
         message.success("Logout successful");
         await persistor.purge();
+        socketRef.current.emit("userOffline", userId);
+        socketRef.current.disconnect();
         router.push("/login");
       } else {
         message.error(resultAction.payload || "Logout failed");
@@ -123,32 +168,33 @@ export default function ChatDashboard() {
 
         <div className="flex-1 overflow-y-auto space-y-2">
           {filteredUsers.map((user) => {
-            const isOnline = onlineUsers.includes(user._id);
+            const status = userStatuses[user._id] || "offline";
 
             return (
               <button
                 key={user._id}
                 onClick={() => handleSelectUser(user)}
-                className={`w-full text-left px-6 py-4 flex items-center gap-3 border-y border-gray-200 hover:bg-slate-50 ${selectedUser?._id === user._id
-                  ? "bg-slate-100"
-                  : "bg-white"
+                className={`w-full text-left px-6 py-4 flex items-center gap-3 border-y border-gray-200 hover:bg-slate-50 ${selectedUser?._id === user._id ? "bg-slate-100" : "bg-white"
                   }`}
               >
                 <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-indigo-500 text-white font-semibold uppercase">
                   {user.username?.[0] || "U"}
+
                   <span
-                    className={`w-3 h-3 rounded-full absolute bottom-0 right-0 ${isOnline ? "bg-green-500" : "bg-red-400"
+                    className={`w-3 h-3 rounded-full absolute bottom-0 right-0 ${status === "online"
+                      ? "bg-green-500"
+                      : status === "away"
+                        ? "bg-yellow-400"
+                        : "bg-red-400"
                       }`}
                   />
                 </div>
 
                 <div className="flex-1">
-                  <div className="font-medium capitalize">
-                    {user.username}
-                  </div>
+                  <div className="font-medium capitalize">{user.username}</div>
 
-                  <div className="text-sm text-slate-500">
-                    {isOnline ? "Online" : "Offline"}
+                  <div className="text-sm text-slate-500 capitalize">
+                    {status}
                   </div>
                 </div>
               </button>
