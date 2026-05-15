@@ -47,11 +47,16 @@ export default function ChatDashboard() {
 
     socketRef.current = socket;
 
+
     socket.on("connect", () => {
       console.log("Connected:", socket.id);
+
+      socket.emit("userOnline", userId);
+
     });
 
     socket.on("sortedUsers", (users: User[]) => {
+      console.log(users)
       setSortedUsers(users);
     });
 
@@ -61,7 +66,7 @@ export default function ChatDashboard() {
         [userId]: status,
       }));
     });
-
+    console.log(sortedUsers)
     socket.on("disconnect", () => {
       console.log(" Disconnected");
     });
@@ -76,13 +81,20 @@ export default function ChatDashboard() {
 
     let timeout: NodeJS.Timeout;
 
+    // let awayTimeout: NodeJS.Timeout;
+    // let offlineTimeout: NodeJS.Timeout;
+
     const setAway = () => {
       socketRef.current.emit("userAway", userId);
+    };
+    const setOffline = () => {
+      socketRef.current.emit("userOffline", userId);
     };
     const resetTimer = () => {
       clearTimeout(timeout);
       socketRef.current.emit("userOnline", userId);
       timeout = setTimeout(setAway, 3 * 60 * 1000);
+      timeout = setTimeout(setOffline, 20 * 60 * 1000);
     };
 
     window.addEventListener("mousemove", resetTimer);
@@ -100,10 +112,13 @@ export default function ChatDashboard() {
     document.addEventListener("visibilitychange", handleHidden);
 
     const handleUnload = () => {
-      socketRef.current.emit("userAway", userId);
+      if (!socketRef.current) return;
+      socketRef.current.emit("userOffline", userId);
+      socketRef.current.disconnect();
     };
 
     window.addEventListener("beforeunload", handleUnload);
+    window.addEventListener("pagehide", handleUnload);
     resetTimer();
     return () => {
       clearTimeout(timeout);
@@ -112,6 +127,7 @@ export default function ChatDashboard() {
       window.removeEventListener("click", resetTimer);
       document.removeEventListener("visibilitychange", handleHidden);
       window.removeEventListener("beforeunload", handleUnload);
+      window.removeEventListener("pagehide", handleUnload);
     };
   }, [userId]);
 

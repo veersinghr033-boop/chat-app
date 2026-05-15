@@ -14,7 +14,7 @@ export const getMessages = async (req, res) => {
     if (!chat) return res.json([]);
 
     const messages = await Message.find({ chatId: chat._id });
-    
+
     res.json(messages);
   } catch (err) {
     console.error(err);

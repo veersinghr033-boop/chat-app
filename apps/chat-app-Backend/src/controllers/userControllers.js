@@ -7,7 +7,6 @@ export const emitSortedUsers = async (io, currentUserId) => {
   const chats = await Chat.find({
     participants: currentUserId,
   });
-
   const result = users.map((user) => {
     const chat = chats.find((c) => c.participants.includes(user._id));
 
